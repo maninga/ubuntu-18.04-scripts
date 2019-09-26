@@ -31,19 +31,18 @@ if ! grep '^net.ipv4.ip_forward = 1' /etc/sysctl.conf; then
     echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf
 fi
 
-if ! grep '^net.ipv6.conf.all.disable_ipv6 = 1' /etc/sysctl.conf; then
-    echo 'net.ipv6.conf.all.disable_ipv6 = 1' >> /etc/sysctl.conf
-fi
-
-if ! grep '^net.ipv6.conf.all.disable_ipv6 = 1' /etc/sysctl.conf; then
-    echo 'net.ipv6.conf.all.disable_ipv6 = 1' >> /etc/sysctl.conf
-fi
-
-if ! grep '^net.ipv6.conf.all.disable_ipv6 = 1' /etc/sysctl.conf; then
-    echo 'net.ipv6.conf.all.disable_ipv6 = 1' >> /etc/sysctl.conf
-fi
-
 # disable ipv6
+if ! grep '^net.ipv6.conf.all.disable_ipv6 = 1' /etc/sysctl.conf; then
+    echo 'net.ipv6.conf.all.disable_ipv6 = 1' >> /etc/sysctl.conf
+fi
+if ! grep '^net.ipv6.conf.default.disable_ipv6 = 1' /etc/sysctl.conf; then
+    echo 'net.ipv6.conf.default.disable_ipv6 = 1' >> /etc/sysctl.conf
+fi
+if ! grep '^net.ipv6.conf.lo.disable_ipv6 = 1' /etc/sysctl.conf; then
+    echo 'net.ipv6.conf.lo.disable_ipv6 = 1' >> /etc/sysctl.conf
+fi
+
+# disable ipv6 autoconf
 cat << 'EOL' | tee /etc/sysctl.d/disable-IPv6-autoconf.conf
 # Disable IPv6 autoconf
 net.ipv6.conf.all.autoconf = 0
