@@ -26,6 +26,39 @@ apt install -y cloud-init
 apt install -y qemu-guest-agent
 apt install -y fail2ban
 
+# enable ipv4 forwarding
+if ! grep '^net.ipv4.ip_forward = 1' /etc/sysctl.conf; then
+    echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf
+fi
+
+if ! grep '^net.ipv6.conf.all.disable_ipv6 = 1' /etc/sysctl.conf; then
+    echo 'net.ipv6.conf.all.disable_ipv6 = 1' >> /etc/sysctl.conf
+fi
+
+if ! grep '^net.ipv6.conf.all.disable_ipv6 = 1' /etc/sysctl.conf; then
+    echo 'net.ipv6.conf.all.disable_ipv6 = 1' >> /etc/sysctl.conf
+fi
+
+if ! grep '^net.ipv6.conf.all.disable_ipv6 = 1' /etc/sysctl.conf; then
+    echo 'net.ipv6.conf.all.disable_ipv6 = 1' >> /etc/sysctl.conf
+fi
+
+# disable ipv6
+cat << 'EOL' | tee /etc/sysctl.d/disable-IPv6-autoconf.conf
+# Disable IPv6 autoconf
+net.ipv6.conf.all.autoconf = 0
+net.ipv6.conf.all.accept_ra = 0
+net.ipv6.conf.all.accept_ra_defrtr = 0
+net.ipv6.conf.all.accept_ra_pinfo = 0
+net.ipv6.conf.default.autoconf = 0
+net.ipv6.conf.default.accept_ra = 0
+net.ipv6.conf.default.accept_ra_defrtr = 0
+net.ipv6.conf.default.accept_ra_pinfo = 0
+net.ipv6.conf.lo.autoconf = 0
+net.ipv6.conf.lo.accept_ra = 0
+net.ipv6.conf.lo.accept_ra_defrtr = 0
+net.ipv6.conf.lo.accept_ra_pinfo = 0
+EOL
 
 #Stop services for cleanup
 service rsyslog stop
@@ -98,6 +131,7 @@ hostnamectl set-hostname localhost
 truncate -s0 /etc/hostname
 
 #cleanup apt
+apt autoremove -y --purge
 apt clean
 
 # disable swap (docker / swarm / kubernetes)
