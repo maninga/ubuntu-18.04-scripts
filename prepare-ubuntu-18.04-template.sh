@@ -7,9 +7,9 @@
 # TESTED ON UBUNTU 18.04 LTS
 
 # SETUP & RUN
-# curl -sL https://raw.githubusercontent.com/jimangel/ubuntu-18.04-scripts/master/prepare-ubuntu-18.04-template.sh | sudo -E bash -
+# curl -sL https://raw.githubusercontent.com/maninga/ubuntu-18.04-scripts/master/prepare-ubuntu-18.04-template.sh | sudo -E bash -
 
-if [ `id -u` -ne 0 ]; then
+if [ $(id -u) -ne 0 ]; then
 	echo Need sudo
 	exit 1
 fi
@@ -18,42 +18,51 @@ set -v
 
 #update apt-cache
 apt update -y
-apt upgrade -y
+apt dist-upgrade -y
 
 #install packages
 # apt install -y open-vm-tools
+apt install -y cloud-init
+apt install -y qemu-guest-agent
+apt install -y fail2ban
+
 
 #Stop services for cleanup
 service rsyslog stop
 
-#clear audit logs
-if [ -f /var/log/auth.log ]; then
-    truncate -s0 /var/log/auth.log
-fi
+# clear auth and audit logs
+for f in /var/log/auth.log /var/log/faillog /var/log/fail2ban.log /var/log/audit/audit.log /var/log/wtmp /var/log/lastlog; do
+    if [ -f "$f" ]; then
+        truncate -s0 "$"
+    fi
+done
 
-if [ -f /var/log/audit/audit.log ]; then
-    truncate -s0 /var/log/audit/audit.log
-fi
-
-if [ -f /var/log/wtmp ]; then
-    truncate -s0 /var/log/wtmp
-fi
-
-if [ -f /var/log/lastlog ]; then
-    truncate -s0 /var/log/lastlog
-fi
-
-#cleanup persistent udev rules
+# cleanup persistent udev rules
 if [ -f /etc/udev/rules.d/70-persistent-net.rules ]; then
     rm /etc/udev/rules.d/70-persistent-net.rules
 fi
 
-#cleanup /tmp directories
+# cleanup /tmp directories
 rm -rf /tmp/*
 rm -rf /var/tmp/*
 
 #cleanup current ssh keys
 rm -f /etc/ssh/ssh_host_*
+
+# change network config by the one provided by cloud-init (ubuntu-16.04)
+if [ -d /etc/network/interfaces.d ]; then
+    cat << 'EOL' | tee /etc/network/interfaces
+source /etc/network/interfaces.d/*
+EOL
+fi
+
+# add ssh-ddos jail to fail2ban
+if [ -f /etc/fail2ban/filter.d/sshd-ddos.conf ]; then
+    cat << 'EOL' | tee /etc/fail2ban/jail.d/sshd-ddos.conf
+[sshd-ddos]
+enabled = true
+EOL
+fi
 
 #add check for ssh keys on reboot...regenerate if neccessary
 cat << 'EOL' | tee /etc/rc.local
@@ -91,7 +100,7 @@ truncate -s0 /etc/hostname
 #cleanup apt
 apt clean
 
-# disable swap
+# disable swap (docker / swarm / kubernetes)
 swapoff --all
 sed -ri '/\sswap\s/s/^#?/#/' /etc/fstab
 
@@ -99,9 +108,13 @@ sed -ri '/\sswap\s/s/^#?/#/' /etc/fstab
 # also look in /etc/netplan for other config files
 # sed -i 's/optional: true/dhcp-identifier: mac/g' /etc/netplan/50-cloud-init.yaml
 
-WEBADMIN=$(grep ALL /etc/sudoers.d/90-cloud-init-users | awk '{ print $1 }')
-# remove cloud-init sudoers file
-rm -rf /etc/sudoers.d/90-cloud-init-users
+if [ -f /etc/sudoers.d/90-cloud-init-users ]; then
+    WEBADMIN=$(grep ALL /etc/sudoers.d/90-cloud-init-users | awk '{ print $1 }')
+    # remove cloud-init sudoers file
+    rm -rf /etc/sudoers.d/90-cloud-init-users
+else
+    WEBADMIN=$(id -un -- "1000")
+fi
 
 userdel -f -r $WEBADMIN
 groupdel $WEBADMIN
