@@ -2,7 +2,8 @@
 ######################################################
 #### WARNING PIPING TO BASH IS STUPID: DO NOT USE THIS
 ######################################################
-# modified from: jcppkkk/prepare-ubuntu-template.sh
+# modified from: jimangel/ubuntu-18.04-scripts/prepare-ubuntu-18.04-template.sh
+# that was modified from: jcppkkk/prepare-ubuntu-template.sh
 # TESTED ON UBUNTU 18.04 LTS
 
 # SETUP & RUN
@@ -20,17 +21,31 @@ apt update -y
 apt upgrade -y
 
 #install packages
-apt install -y open-vm-tools
+# apt install -y open-vm-tools
 
 #Stop services for cleanup
 service rsyslog stop
 
 #clear audit logs
+if [ -f /var/log/auth.log ]; then
+    truncate -s0 /var/log/auth.log
+fi
+
+if [ -f /var/log/audit/audit.log ]; then
+    truncate -s0 /var/log/audit/audit.log
+fi
+
 if [ -f /var/log/wtmp ]; then
     truncate -s0 /var/log/wtmp
 fi
+
 if [ -f /var/log/lastlog ]; then
     truncate -s0 /var/log/lastlog
+fi
+
+#cleanup persistent udev rules
+if [ -f /etc/udev/rules.d/70-persistent-net.rules ]; then
+    rm /etc/udev/rules.d/70-persistent-net.rules
 fi
 
 #cleanup /tmp directories
@@ -41,7 +56,7 @@ rm -rf /var/tmp/*
 rm -f /etc/ssh/ssh_host_*
 
 #add check for ssh keys on reboot...regenerate if neccessary
-cat << 'EOL' | sudo tee /etc/rc.local
+cat << 'EOL' | tee /etc/rc.local
 #!/bin/sh -e
 #
 # rc.local
@@ -57,7 +72,7 @@ cat << 'EOL' | sudo tee /etc/rc.local
 
 # dynamically create hostname (optional)
 if hostname | grep localhost; then
-    hostnamectl set-hostname "$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13 ; echo '')"
+    hostnamectl set-hostname "$(grep 127.0.1.1 /etc/hosts | awk '{ print $2 }')"
 fi
 
 test -f /etc/ssh/ssh_host_dsa_key || dpkg-reconfigure openssh-server
@@ -70,25 +85,38 @@ chmod +x /etc/rc.local
 #reset hostname
 # prevent cloudconfig from preserving the original hostname
 sed -i 's/preserve_hostname: false/preserve_hostname: true/g' /etc/cloud/cloud.cfg
-truncate -s0 /etc/hostname
 hostnamectl set-hostname localhost
+truncate -s0 /etc/hostname
 
 #cleanup apt
 apt clean
 
 # disable swap
-sudo swapoff --all
-sudo sed -ri '/\sswap\s/s/^#?/#/' /etc/fstab
+swapoff --all
+sed -ri '/\sswap\s/s/^#?/#/' /etc/fstab
 
 # set dhcp to use mac - this is a little bit of a hack but I need this to be placed under the active nic settings
 # also look in /etc/netplan for other config files
-sed -i 's/optional: true/dhcp-identifier: mac/g' /etc/netplan/50-cloud-init.yaml
+# sed -i 's/optional: true/dhcp-identifier: mac/g' /etc/netplan/50-cloud-init.yaml
+
+WEBADMIN=$(grep ALL /etc/sudoers.d/90-cloud-init-users | awk '{ print $1 }')
+# remove cloud-init sudoers file
+rm -rf /etc/sudoers.d/90-cloud-init-users
+
+userdel -f -r $WEBADMIN
+groupdel $WEBADMIN
+
+for f in /etc/group /etc/gshadow /etc/passwd /etc/shadow /etc/subgid /etc/subuid; do
+    if [ -f "$f" ]; then
+        cp --preserve=timestamps "$f" "$f-"
+    fi
+done
 
 # cleans out all of the cloud-init cache / logs - this is mainly cleaning out networking info
-sudo cloud-init clean --logs
+cloud-init clean --logs
 
 #cleanup shell history
-cat /dev/null > ~/.bash_history && history -c
+truncate -s0 ~/.bash_history && history -c
 history -w
 
 #shutdown
